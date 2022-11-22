@@ -11,3 +11,4 @@ env_logger = "0.9"  #   logging
 log = "0.4"         #   logging
 wgpu = "0.14"       #   graphics
 pollster = "0.2"    #   async executor
+bytemuck = { version = "1.4", features = [ "derive"] }    #   byte manipulation & casting
