@@ -12,3 +12,10 @@ log = "0.4"         #   logging
 wgpu = "0.14"       #   graphics
 pollster = "0.2"    #   async executor
 bytemuck = { version = "1.4", features = [ "derive"] }    #   byte manipulation & casting
+anyhow = "1.0"      #   error handling
+cgmath = "0.18"     #   computer graphics math
+
+[dependencies.image]    #   handling images
+version = "0.24"
+default-features = false
+features = ["png", "jpeg"]
