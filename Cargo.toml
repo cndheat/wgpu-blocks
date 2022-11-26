@@ -5,6 +5,11 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[build-dependencies]
+anyhow = "1.0"
+fs_extra = "1.2"
+glob = "0.3"
+
 [dependencies]
 winit = "0.27"      #   windowing
 env_logger = "0.9"  #   logging
@@ -14,6 +19,7 @@ pollster = "0.2"    #   async executor
 bytemuck = { version = "1.4", features = [ "derive"] }    #   byte manipulation & casting
 anyhow = "1.0"      #   error handling
 cgmath = "0.18"     #   computer graphics math
+tobj = { version = "3.2.1", features = ["async",] }
 
 [dependencies.image]    #   handling images
 version = "0.24"
