@@ -147,6 +147,8 @@ dependencies = [
  "glob",
  "gltf",
  "image 0.24.5",
+ "instant",
+ "load_file",
  "log",
  "pollster",
  "tobj",
@@ -848,6 +850,12 @@ dependencies = [
  "cfg-if",
  "winapi",
 ]
+
+[[package]]
+name = "load_file"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31da4bce62428941030036a44d0d4b123f031b04080f8aeb44248b41de3e79cd"
 
 [[package]]
 name = "lock_api"

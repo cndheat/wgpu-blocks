@@ -21,6 +21,8 @@ anyhow = "1.0"      #   error handling
 cgmath = "0.18"     #   computer graphics math
 tobj = { version = "3.2.1", features = ["async",] } #   obj file loading
 gltf = "1.0"        #   gltf file loading
+instant = "0.1"     #   wasm-safe version of std::time::Instant
+load_file = "1.0.1" #   load files at runtime rather than compile time
 
 [dependencies.image]    #   handling images
 version = "0.24"
