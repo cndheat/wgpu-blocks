@@ -5,12 +5,11 @@ use winit::{
     window::{WindowBuilder, Window},
 };
 use cgmath::prelude::*;
-use model::{Vertex, Model, DrawModel};
+use engine::{model, model::{Vertex, Model, DrawModel}, texture};
+use game::{camera};
 
-mod texture;
-mod model;
-mod resources;
-mod camera;
+mod engine;
+mod game;
 
 struct State {
     surface: wgpu::Surface,
@@ -19,18 +18,19 @@ struct State {
     config: wgpu::SurfaceConfiguration,
     size: winit::dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
+    //  TODO: add these to the "Game" struct
     camera: camera::Camera,
     projection: camera::Projection,
-    camera_uniform: CameraUniform,
+    camera_uniform: game::uniform::CameraUniform,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     camera_controller: camera::CameraController,
     mouse_pressed: bool,
-    instances: Vec<Instance>,
+    instances: Vec<game::instance::Instance>,
     instance_buffer: wgpu::Buffer,
     depth_texture: texture::Texture,
     obj_model: Model,
-    light_uniform: LightUniform,
+    light_uniform: game::uniform::LightUniform,
     light_buffer: wgpu::Buffer,
     light_bind_group: wgpu::BindGroup,
     light_render_pipeline: wgpu::RenderPipeline,
@@ -77,7 +77,7 @@ impl State {
         };
         surface.configure(&device, &config);
 
-        let light_uniform = LightUniform {
+        let light_uniform = game::uniform::LightUniform {
             position: [2.0, 2.0, 2.0],
             _padding: 0,
             color: [1.0, 1.0, 1.0],
@@ -119,7 +119,7 @@ impl State {
         let projection = camera::Projection::new(config.width, config.height, cgmath::Deg(45.0), 0.1, 100.0);
         let camera_controller = camera::CameraController::new(12.0, 1.0);
 
-        let mut camera_uniform = CameraUniform::new();
+        let mut camera_uniform = game::uniform::CameraUniform::new();
         camera_uniform.update_view_proj(&camera, &projection);
 
         let camera_buffer = device.create_buffer_init(
@@ -218,14 +218,14 @@ impl State {
         let render_pipeline = {
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("Normal Shader"),
-                source: wgpu::ShaderSource::Wgsl(load_file::load_str!("shader.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(load_file::load_str!("../res/shaders/shader.wgsl").into()),
             };
             create_render_pipeline(
                 &device,
                 &render_pipeline_layout,
                 config.format,
                 Some(texture::Texture::DEPTH_FORMAT),
-                &[model::ModelVertex::desc(), InstanceRaw::desc()],
+                &[model::ModelVertex::desc(), game::instance::InstanceRaw::desc()],
                 shader,
             )
         };
@@ -238,7 +238,7 @@ impl State {
             });
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("Light Shader"),
-                source: wgpu::ShaderSource::Wgsl(load_file::load_str!("light.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(load_file::load_str!("../res/shaders/light.wgsl").into()),
             };
             create_render_pipeline(
                 &device,
@@ -251,10 +251,10 @@ impl State {
         };
         
         const SPACE_BETWEEN: f32 = 3.0;
-        let instances = (0..NUM_INSTANCES_PER_ROW).flat_map(|z| {
-            (0..NUM_INSTANCES_PER_ROW).map(move |x| {
-                let x = SPACE_BETWEEN * (x as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
-                let z = SPACE_BETWEEN * (z as f32 - NUM_INSTANCES_PER_ROW as f32 / 2.0);
+        let instances = (0..game::instance::NUM_INSTANCES_PER_ROW).flat_map(|z| {
+            (0..game::instance::NUM_INSTANCES_PER_ROW).map(move |x| {
+                let x = SPACE_BETWEEN * (x as f32 - game::instance::NUM_INSTANCES_PER_ROW as f32 / 2.0);
+                let z = SPACE_BETWEEN * (z as f32 - game::instance::NUM_INSTANCES_PER_ROW as f32 / 2.0);
         
                 let position = cgmath::Vector3 {x, y: 0.0, z};
         
@@ -264,13 +264,13 @@ impl State {
                     cgmath::Quaternion::from_axis_angle(position.normalize(), cgmath::Deg(45.0))
                 };
         
-                Instance {
+                game::instance::Instance {
                     position, rotation,
                 }
             })
         }).collect::<Vec<_>>();
 
-        let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
+        let instance_data = instances.iter().map(game::instance::Instance::to_raw).collect::<Vec<_>>();
         let instance_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Instance Buffer"),
@@ -279,14 +279,15 @@ impl State {
             }
         );
 
+        /* 
         let mut res_dir = std::env::current_exe()   //  Get current path of the binary exe file
             .expect("Can't find path to executable");
         res_dir.pop();  //  Remove the binary from the path so we just have its folder location
         res_dir.push("res/cube.obj");    //  Append "res" so we can look up resources in the resource folder
-        let obj_path = res_dir.to_string_lossy();
+        let obj_path = res_dir.to_string_lossy();*/
+        //  TODO: make this a constant 
 
-        let obj_model = resources::load_model_obj(
-            //&obj_path,
+        let obj_model = engine::resources::load_model_obj(
             "../res/cube.obj",
             &device,
             &queue,
@@ -294,11 +295,11 @@ impl State {
         ).await.unwrap();
 
         let debug_material = {
-            let diffuse_bytes = load_file::load_bytes!("../res/stud.png");
-            let normal_bytes = load_file::load_bytes!("../res/stud-normal.png");
+            let diffuse_bytes = load_file::load_bytes!("../res/bricks/stud.png");
+            let normal_bytes = load_file::load_bytes!("../res/bricks/stud-normal.png");
 
-            let diffuse_texture = texture::Texture::from_bytes(&device, &queue, diffuse_bytes, "../res/alt-diffuse.png", false).unwrap();
-            let normal_texture = texture::Texture::from_bytes(&device, &queue, normal_bytes, "../res/alt-normal.png", true).unwrap();
+            let diffuse_texture = texture::Texture::from_bytes(&device, &queue, diffuse_bytes, "../res/bricks/alt-diffuse.png", false).unwrap();
+            let normal_texture = texture::Texture::from_bytes(&device, &queue, normal_bytes, "../res/bricks/alt-normal.png", true).unwrap();
 
             model::Material::new(&device, "alt-material", diffuse_texture, normal_texture, &texture_bind_group_layout)
         };
@@ -501,112 +502,6 @@ fn create_render_pipeline(
         },
         multiview: None,
     })
-}
-
-const NUM_INSTANCES_PER_ROW: u32 = 10;
-
-struct Instance {
-    position: cgmath::Vector3<f32>,
-    rotation: cgmath::Quaternion<f32>,
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct InstanceRaw {
-    model: [[f32; 4]; 4],
-    normal: [[f32; 3]; 3],
-}
-
-impl Instance {
-    fn to_raw(&self) -> InstanceRaw {
-        let model = cgmath::Matrix4::from_translation(self.position) * cgmath::Matrix4::from(self.rotation);
-        InstanceRaw {
-            model: model.into(),
-            normal: cgmath::Matrix3::from(self.rotation).into(),
-        }
-    }
-}
-
-impl model::Vertex for InstanceRaw {
-    fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
-        use std::mem;
-        wgpu::VertexBufferLayout {
-            array_stride: mem::size_of::<InstanceRaw>() as wgpu::BufferAddress,
-            //  Switch from using a step mode of Vertex to Instance, meaning our shaders will only change to use the next instance when the shader starts processing a new instance
-            step_mode: wgpu::VertexStepMode::Instance,
-            attributes: &[
-                wgpu::VertexAttribute {
-                    offset: 0,
-                    shader_location: 5, //  Location slot 5 to avoid conflict with other vertex locations
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                //  A mat4 takes up 4 vertex slots so is technically 4 vec4s. We need to define a slot for each vec4, we'll have tor eassemble the mat4 in the shader.
-                wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
-                    shader_location: 6,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
-                    shader_location: 7,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 12]>() as wgpu::BufferAddress,
-                    shader_location: 8,
-                    format: wgpu::VertexFormat::Float32x4,
-                },
-                wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 16]>() as wgpu::BufferAddress,
-                    shader_location: 9,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 19]>() as wgpu::BufferAddress,
-                    shader_location: 10,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-                wgpu::VertexAttribute {
-                    offset: mem::size_of::<[f32; 22]>() as wgpu::BufferAddress,
-                    shader_location: 11,
-                    format: wgpu::VertexFormat::Float32x3,
-                },
-            ],
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct LightUniform {
-    position: [f32; 3],
-    //  Uniforms require 4 float (16 byte) spacing, we need to use padding fields
-    _padding: u32,
-    color: [f32; 3],
-    _padding2: u32,
-}
-
-//  UNIFORM BUFFER - A blob of data that is available to every invocation of a set of shaders. Used to store our view projection matrix.
-#[repr(C)]  //  needed for Rust to store the data for shaders correctly
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]    //  needed so we can store it in a buffer
-struct CameraUniform {
-    view_position: [f32; 4],
-    //  cgmath cant be used directly with bytemuck, so we have to convert the Matrix4 into a 4x4 f32 array
-    view_proj: [[f32; 4]; 4],
-}
-
-impl CameraUniform {
-    fn new() -> Self {
-        Self {
-            view_position: [0.0; 4],
-            view_proj: cgmath::Matrix4::identity().into(),
-        }
-    }
-
-    fn update_view_proj(&mut self, camera: &camera::Camera, projection: &camera::Projection) {
-        self.view_position = camera.position.to_homogeneous().into();
-        self.view_proj = (projection.calc_matrix() * camera.calc_matrix()).into();
-    }
 }
 
 pub async fn run() {
